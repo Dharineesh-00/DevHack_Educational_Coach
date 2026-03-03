@@ -45,6 +45,7 @@ class OllamaClient:
         system: str = "",
         model: str | None = None,
         format: str | None = None,  # pass "json" to request JSON-mode output
+        options: dict | None = None,  # e.g. {"num_predict": 120, "temperature": 0.75}
     ) -> str:
         """
         Send a prompt to Ollama and return the full response text.
@@ -70,6 +71,7 @@ class OllamaClient:
             system=system,
             model=model or self.model,
             format=format,
+            options=options,
         ):
             chunks.append(chunk)
         return "".join(chunks)
@@ -81,6 +83,7 @@ class OllamaClient:
         system: str = "",
         model: str | None = None,
         format: str | None = None,
+        options: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream the Ollama response, yielding text chunks as they arrive.
@@ -95,6 +98,7 @@ class OllamaClient:
             system=system,
             model=model or self.model,
             format=format,
+            options=options,
         ):
             yield chunk
 
@@ -108,6 +112,7 @@ class OllamaClient:
         system: str,
         model: str,
         format: str | None,
+        options: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """Core streaming generator — all public methods delegate here."""
         payload: dict = {
@@ -119,6 +124,8 @@ class OllamaClient:
             payload["system"] = system
         if format:
             payload["format"] = format  # e.g. "json" for JSON-mode
+        if options:
+            payload["options"] = options  # e.g. {"num_predict": 120, "temperature": 0.75}
 
         url = f"{self.base_url}{OLLAMA_GENERATE_PATH}"
 

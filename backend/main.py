@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import httpx
 
@@ -23,6 +24,17 @@ app = FastAPI(
         "and Socratic tutoring feedback powered by a local LLM."
     ),
     version="2.0.0",
+)
+
+# ---------------------------------------------------------------------------
+# CORS — allow the Vite dev server (and any localhost port) to call the API
+# ---------------------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],   # includes OPTIONS so preflight passes
+    allow_headers=["*"],
 )
 
 
@@ -51,12 +63,6 @@ class CodeRequest(BaseModel):
     )
 
 
-class ComplexityResult(BaseModel):
-    time_complexity: str
-    space_complexity: str
-    is_optimal: bool
-
-
 class SubmitResponse(BaseModel):
     # Execution details
     language: str
@@ -66,11 +72,9 @@ class SubmitResponse(BaseModel):
     execution_output: str
     exit_code: int
 
-    # Complexity analysis
-    complexity: ComplexityResult
-
-    # Tutor feedback
-    tutor_feedback: str
+    # Agent debate — rendered in the React agent terminal
+    agent_logs: list[str]
+    tutor_response: str
 
 
 # ---------------------------------------------------------------------------
@@ -85,14 +89,15 @@ class SubmitResponse(BaseModel):
 )
 async def submit_code(payload: CodeRequest) -> SubmitResponse:
     """
-    Full DSA pipeline:
+    Good Cop / Bad Cop Interview Panel:
 
     1. **Execute** the code via Piston and capture stdout/stderr.
-    2. **Analyse** time/space complexity with a local LLM (ComplexityAgent).
-    3. **Tutor** the candidate with Socratic questions (TutorAgent).
+    2. **Critic** (Harsh Staff Engineer) roasts the code quality / complexity.
+    3. **Defender** (Empathetic DevRel Coach) counters the Critic.
+    4. **Judge** (Lead Interviewer) synthesises a Socratic hint for the student.
 
-    - **language**: Piston language tag (default: `python`)
-    - **code**: source code to run and analyse
+    Returns ``agent_logs`` (the debate transcript) and ``tutor_response``
+    (the Judge's final message) for the frontend agent terminal.
     """
     try:
         result = await orchestrator.run(
@@ -123,11 +128,7 @@ async def submit_code(payload: CodeRequest) -> SubmitResponse:
         stderr=result.stderr,
         execution_output=result.execution_output,
         exit_code=result.exit_code,
-        complexity=ComplexityResult(
-            time_complexity=result.time_complexity,
-            space_complexity=result.space_complexity,
-            is_optimal=result.is_optimal,
-        ),
-        tutor_feedback=result.tutor_feedback,
+        agent_logs=result.agent_logs,
+        tutor_response=result.tutor_feedback,
     )
  
