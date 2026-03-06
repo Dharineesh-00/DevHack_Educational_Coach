@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 import httpx
 
 import orchestrator
+from services.llm_client import OpenRouterClient
+
+_llm = OpenRouterClient()  # shared singleton for /chat
 
 # ------------------------------------------------------------------
 # Logging — prints agent discussion to the uvicorn terminal.
@@ -31,7 +34,15 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5175",
+    ],
     allow_credentials=True,
     allow_methods=["*"],   # includes OPTIONS so preflight passes
     allow_headers=["*"],
@@ -131,4 +142,66 @@ async def submit_code(payload: CodeRequest) -> SubmitResponse:
         agent_logs=result.agent_logs,
         tutor_response=result.tutor_feedback,
     )
+
+
+# ---------------------------------------------------------------------------
+# /chat  — direct chatbot conversation
+# ---------------------------------------------------------------------------
+
+_CHAT_SYSTEM = """\
+You are a helpful Socratic DSA (Data Structures & Algorithms) tutor.
+Guide the student with probing questions rather than giving away answers.
+Be concise, encouraging, and technically accurate.
+"""
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., min_length=1)
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(
+        ...,
+        description="Full conversation history including the new user message.",
+    )
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
+@app.post(
+    "/chat",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Chat with the DSA Tutor (OpenRouter / claude-3-haiku)",
+)
+async def chat(payload: ChatRequest) -> ChatResponse:
+    """
+    Send a conversation history and receive the tutor's next reply.
+    Uses anthropic/claude-3-haiku via OpenRouter with automatic
+    fallback to free models if the primary is unavailable.
+    """
+    messages = [{"role": "system", "content": _CHAT_SYSTEM}] + [
+        {"role": m.role, "content": m.content} for m in payload.messages
+    ]
+    try:
+        reply = await _llm.chat(messages, options={"max_tokens": 512})
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="OpenRouter request timed out. Please try again.",
+        )
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenRouter error: HTTP {exc.response.status_code}",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Chat service error: {exc}",
+        )
+    return ChatResponse(reply=reply)
  

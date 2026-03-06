@@ -50,17 +50,16 @@ def _vibe(failure_count: int) -> str:
     return f"Failed {failure_count} times in 5 min. High frustration."
 
 from services.piston_runner import PistonClient
-from services.llm_client import OllamaClient
+from services.llm_client import OpenRouterClient
 from db.base_repo import MetricsRepository
 from db.mock_repo import MockMetricsRepository
 
 # Shared singletons (instantiated once at import time)
 _piston = PistonClient()
-_ollama = OllamaClient()  # single httpx client; model set in llm_client.py
+_ollama = OpenRouterClient()  # primary: claude-3-haiku, auto-falls back to free models
 
-# Ollama generation options tuned for short, fast responses.
-# num_predict caps the token budget per agent call.
-_FAST_OPTS: dict = {"num_predict": 120, "temperature": 0.75}
+# OpenRouter generation options for short, focused agent responses.
+_FAST_OPTS: dict = {"max_tokens": 200, "temperature": 0.75}
 
 
 @dataclass

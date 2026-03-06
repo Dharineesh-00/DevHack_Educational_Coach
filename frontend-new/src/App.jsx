@@ -224,7 +224,7 @@ function CodeEditorPanel({ problem, code, language, setCode, isLoading, onSubmit
 }
 
 // ─── Top-Right Panel — Socratic Tutor ────────────────────────────────────────
-function TutorPanel({ chatHistory, chatInput, setChatInput }) {
+function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLoading }) {
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -271,11 +271,17 @@ function TutorPanel({ chatHistory, chatInput, setChatInput }) {
           type="text"
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSendChat()}
           placeholder="Ask a question or explain your approach…"
           className="flex-1 bg-[#313244] text-[#cdd6f4] placeholder-[#585b70] text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-[#89b4fa] transition"
+          disabled={isChatLoading}
         />
-        <button className="p-2 rounded-lg bg-[#cba6f7] hover:bg-[#b4befe] text-[#1e1e2e] transition-colors duration-200 cursor-pointer">
-          <Send size={14} />
+        <button
+          onClick={onSendChat}
+          disabled={isChatLoading || !chatInput.trim()}
+          className="p-2 rounded-lg bg-[#cba6f7] hover:bg-[#b4befe] text-[#1e1e2e] transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isChatLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
         </button>
       </div>
     </div>
@@ -325,10 +331,43 @@ function App() {
       content: "Hello! I'm your Socratic Tutor. Pick a problem, write your solution, and hit Submit!",
     },
   ])
+  const [isChatLoading, setIsChatLoading] = useState(false)
   const [agentLogs, setAgentLogs] = useState([
     '> System ready. Awaiting code submission…',
     '> _',
   ])
+
+  const handleSendChat = async () => {
+    const text = chatInput.trim()
+    if (!text || isChatLoading) return
+
+    const userMsg = { role: 'user', content: text }
+    const updatedHistory = [...chatHistory, userMsg]
+    setChatHistory(updatedHistory)
+    setChatInput('')
+    setIsChatLoading(true)
+
+    try {
+      const response = await axios.post('http://localhost:8000/chat', {
+        messages: updatedHistory.map((m) => ({
+          role: m.role === 'bot' ? 'assistant' : m.role,
+          content: m.content,
+        })),
+      })
+      setChatHistory((prev) => [
+        ...prev,
+        { role: 'bot', content: response.data.reply },
+      ])
+    } catch (err) {
+      const msg = err.response?.data?.detail ?? err.message ?? 'Unknown error.'
+      setChatHistory((prev) => [
+        ...prev,
+        { role: 'bot', content: `⚠️ Error: ${msg}` },
+      ])
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
 
   const handleSelectProblem = (problem) => {
     setSelectedProblem(problem)
@@ -419,6 +458,8 @@ function App() {
           chatHistory={chatHistory}
           chatInput={chatInput}
           setChatInput={setChatInput}
+          onSendChat={handleSendChat}
+          isChatLoading={isChatLoading}
         />
         <AgentTerminal agentLogs={agentLogs} />
       </div>
