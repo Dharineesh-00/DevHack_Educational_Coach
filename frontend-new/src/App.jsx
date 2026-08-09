@@ -9,6 +9,7 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const PROBLEMS = [
   {
     id: 1,
+    slug: 'valid-parentheses',
     title: 'Valid Parentheses',
     difficulty: 'Easy',
     description:
@@ -25,6 +26,7 @@ const PROBLEMS = [
   },
   {
     id: 2,
+    slug: 'min-stack',
     title: 'Min Stack',
     difficulty: 'Medium',
     description:
@@ -54,6 +56,7 @@ const PROBLEMS = [
   },
   {
     id: 3,
+    slug: 'daily-temperatures',
     title: 'Daily Temperatures',
     difficulty: 'Medium',
     description:
@@ -70,6 +73,7 @@ const PROBLEMS = [
   },
   {
     id: 4,
+    slug: 'evaluate-rpn',
     title: 'Evaluate Reverse Polish Notation',
     difficulty: 'Medium',
     description:
@@ -461,28 +465,40 @@ function App() {
 
     try {
       const response = await axios.post(`${API_BASE}/submit`, {
-        language,
+        user_id: 'test-user-1',
+        problem_id: selectedProblem.slug,
         code,
-        user_id: 'user_42',
       })
       const data = response.data
-      if (Array.isArray(data.agent_logs) && data.agent_logs.length > 0) {
+
+      // Build agent log lines from contract fields: critic, defender, judge
+      const logs = []
+      if (data.critic)   logs.push(`[CRITIC] ${data.critic}`)
+      if (data.defender) logs.push(`[DEFENDER] ${data.defender}`)
+      if (data.judge)    logs.push('[JUDGE] Consensus reached. Generating Socratic hint.')
+      // Fallback: legacy agent_logs array if backend still returns old shape
+      const agentLines = logs.length > 0 ? logs : (Array.isArray(data.agent_logs) ? data.agent_logs : [])
+
+      if (agentLines.length > 0) {
         setAgentLogs((prev) => [
           ...prev.filter((l) => !l.endsWith('_')),
-          ...data.agent_logs,
+          ...agentLines,
           '> _',
         ])
       }
+      // Judge hint — contract: data.judge, legacy fallback: data.tutor_response
+      const hint = data.judge ?? data.tutor_response
+      if (hint) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: 'bot', content: hint },
+        ])
+      }
+      // Misconception + trajectory — contract nested objects
       if (data.misconception?.id) {
         setMisconception(data.misconception)
         setRecurrenceCount(data.trajectory?.recurrence_count ?? 0)
         setSameStreak(data.trajectory?.same_misconception_streak ?? false)
-      }
-      if (data.tutor_response) {
-        setChatHistory((prev) => [
-          ...prev,
-          { role: 'bot', content: data.tutor_response },
-        ])
       }
     } catch (err) {
       const msg = err.response?.data?.detail ?? err.message ?? 'Unknown error.'
