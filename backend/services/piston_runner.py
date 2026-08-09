@@ -1,7 +1,7 @@
 import httpx
 
-PISTON_API_URL = "http://127.0.0.1:2000/api/v2/execute"
-DEFAULT_TIMEOUT = 10.0  # seconds
+PISTON_API_URL = "https://emkc.org/api/v2/piston/execute"
+DEFAULT_TIMEOUT = 30.0  # seconds
 
 
 class PistonClient:

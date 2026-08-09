@@ -237,7 +237,7 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
   }, [chatHistory])
 
   return (
-    <div className="flex flex-col h-[70%] border-b border-[#313244]">
+    <div className="flex flex-col h-[58%] border-b border-[#313244]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#313244] bg-[#181825]">
         <Brain size={18} className="text-[#cba6f7]" />
@@ -299,10 +299,10 @@ function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [agentLogs])
+  }, [agentLogs, misconception])
 
   return (
-    <div className="flex flex-col h-[30%] bg-[#11111b]">
+    <div className="flex flex-col h-[42%] bg-[#11111b]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-[#313244] bg-[#181825]">
         <Terminal size={16} className="text-[#a6e3a1]" />
@@ -311,42 +311,6 @@ function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }
         </span>
       </div>
 
-      {/* Misconception + Trajectory badges */}
-      {misconception?.id && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-[#313244] bg-[#1e1e2e]">
-          {/* Misconception ID */}
-          <span className="text-xs text-[#585b70] font-semibold uppercase tracking-wider">Misconception</span>
-          <span className="px-2 py-0.5 rounded-full bg-[#f38ba8]/20 text-[#f38ba8] text-xs font-semibold border border-[#f38ba8]/40">
-            {misconception.id}
-          </span>
-          {/* Confidence */}
-          <span className="px-2 py-0.5 rounded-full bg-[#cba6f7]/20 text-[#cba6f7] text-xs border border-[#cba6f7]/40">
-            {Math.round(misconception.confidence * 100)}% conf
-          </span>
-          {/* Evidence line */}
-          <span className="px-2 py-0.5 rounded-full bg-[#89b4fa]/20 text-[#89b4fa] text-xs border border-[#89b4fa]/40">
-            line {misconception.evidence_line}
-          </span>
-          {/* Recurrence */}
-          <span className="ml-auto text-xs text-[#585b70]">Recurrence</span>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${
-            recurrenceCount >= 3
-              ? 'bg-[#f38ba8]/20 text-[#f38ba8] border-[#f38ba8]/40'
-              : recurrenceCount >= 1
-              ? 'bg-[#f9e2af]/20 text-[#f9e2af] border-[#f9e2af]/40'
-              : 'bg-[#a6e3a1]/20 text-[#a6e3a1] border-[#a6e3a1]/40'
-          }`}>
-            {recurrenceCount}×
-          </span>
-          {/* Streak warning */}
-          {sameStreak && (
-            <span className="px-2 py-0.5 rounded-full bg-[#f38ba8]/30 text-[#f38ba8] text-xs font-bold border border-[#f38ba8]/50 animate-pulse">
-              ⚠ streak
-            </span>
-          )}
-        </div>
-      )}
-
       {/* Log output */}
       <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-xs text-[#a6e3a1] space-y-1 leading-5">
         {agentLogs.map((line, i) => (
@@ -354,26 +318,25 @@ function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }
             {line}
           </div>
         ))}
-
-        {/* Misconception block — only when id is present */}
-        {misconception?.id && (
-          <div className="mt-2 rounded-lg border border-[#f38ba8]/40 bg-[#f38ba8]/10 px-3 py-2 space-y-0.5 font-sans">
-            <div className="text-[#585b70] text-xs font-semibold uppercase tracking-wider mb-1">Misconception detected</div>
-            <div className="text-[#f38ba8] text-xs font-semibold">
-              &ldquo;{misconception.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}&rdquo;
-            </div>
-            <div className="text-[#a6adc8] text-xs">Confidence: {Math.round(misconception.confidence * 100)}%</div>
-            <div className="text-[#a6adc8] text-xs">Line {misconception.evidence_line}</div>
-            {recurrenceCount > 1 && (
-              <div className="mt-1 inline-block px-2 py-0.5 rounded-full bg-[#f9e2af]/20 text-[#f9e2af] text-xs font-semibold border border-[#f9e2af]/40">
-                You've hit this misconception {recurrenceCount}x
-              </div>
-            )}
-          </div>
-        )}
-
         <div ref={endRef} />
       </div>
+
+      {/* Misconception block — pinned, only when id is present */}
+      {misconception?.id && (
+        <div className="shrink-0 mx-4 mb-2 rounded-lg border border-[#f38ba8]/40 bg-[#f38ba8]/10 px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-[#585b70] text-xs font-semibold uppercase tracking-wider">Misconception</span>
+          <span className="text-[#f38ba8] text-xs font-semibold">
+            &ldquo;{misconception.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}&rdquo;
+          </span>
+          <span className="text-[#a6adc8] text-xs">{Math.round(misconception.confidence * 100)}% conf</span>
+          <span className="text-[#a6adc8] text-xs">line {misconception.evidence_line}</span>
+          {recurrenceCount > 1 && (
+            <span className="px-2 py-0.5 rounded-full bg-[#f9e2af]/20 text-[#f9e2af] text-xs font-semibold border border-[#f9e2af]/40">
+              {recurrenceCount}x recurrence
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -399,6 +362,7 @@ function App() {
   const [misconception, setMisconception] = useState(null)   // full object
   const [recurrenceCount, setRecurrenceCount] = useState(0)
   const [sameStreak, setSameStreak] = useState(false)
+  const miscHistory = useRef([])  // frontend-side recurrence tracker
 
   const handleSendChat = async () => {
     const text = chatInput.trim()
@@ -449,6 +413,7 @@ function App() {
     setMisconception(null)
     setRecurrenceCount(0)
     setSameStreak(false)
+    miscHistory.current = []
   }
 
   const handleSubmitCode = async () => {
@@ -475,9 +440,16 @@ function App() {
       const logs = []
       if (data.critic)   logs.push(`[CRITIC] ${data.critic}`)
       if (data.defender) logs.push(`[DEFENDER] ${data.defender}`)
-      if (data.judge)    logs.push('[JUDGE] Consensus reached. Generating Socratic hint.')
+      if (data.judge)    logs.push(`[JUDGE] ${data.judge}`)
       // Fallback: legacy agent_logs array if backend still returns old shape
-      const agentLines = logs.length > 0 ? logs : (Array.isArray(data.agent_logs) ? data.agent_logs : [])
+      const agentLines = logs.length > 0 ? logs : (() => {
+        const lines = Array.isArray(data.agent_logs) ? [...data.agent_logs] : []
+        // Replace hardcoded Judge placeholder with actual tutor_response
+        const judgeIdx = lines.reduce((last, l, i) => l.startsWith('[JUDGE]') ? i : last, -1)
+        if (judgeIdx !== -1 && data.tutor_response)
+          lines[judgeIdx] = `[JUDGE] ${data.tutor_response}`
+        return lines
+      })()
 
       if (agentLines.length > 0) {
         setAgentLogs((prev) => [
@@ -494,12 +466,16 @@ function App() {
           { role: 'bot', content: hint },
         ])
       }
-      // Misconception + trajectory — contract nested objects
-      if (data.misconception?.id) {
-        setMisconception(data.misconception)
-        setRecurrenceCount(data.trajectory?.recurrence_count ?? 0)
-        setSameStreak(data.trajectory?.same_misconception_streak ?? false)
-      }
+      // Misconception — always set after submission; use fallback if id missing
+      const mid = data.misconception?.id || 'unclassified-misconception'
+      const conf = typeof data.misconception?.confidence === 'number' ? data.misconception.confidence : 0.5
+      const evLine = data.misconception?.evidence_line ?? 1
+      setMisconception({ id: mid, confidence: conf, evidence_line: evLine })
+      miscHistory.current.push(mid)
+      const count = miscHistory.current.filter(x => x === mid).length
+      const streak = count >= 2 && miscHistory.current.slice(-2).every(x => x === mid)
+      setRecurrenceCount(count)
+      setSameStreak(streak)
     } catch (err) {
       const msg = err.response?.data?.detail ?? err.message ?? 'Unknown error.'
       setChatHistory((prev) => [
