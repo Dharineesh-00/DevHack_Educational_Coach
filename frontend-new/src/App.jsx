@@ -3,6 +3,8 @@ import { Code2, Brain, Terminal, Send, Loader2, Layers, ChevronRight } from 'luc
 import MonacoEditor from '@monaco-editor/react'
 import axios from 'axios'
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
 // ─── Stack Problems Data ───────────────────────────────────────────────────────
 const PROBLEMS = [
   {
@@ -289,7 +291,7 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
 }
 
 // ─── Bottom-Right Panel — Agent Terminal ──────────────────────────────────────
-function AgentTerminal({ agentLogs }) {
+function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }) {
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -305,6 +307,42 @@ function AgentTerminal({ agentLogs }) {
         </span>
       </div>
 
+      {/* Misconception + Trajectory badges */}
+      {misconception?.id && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-[#313244] bg-[#1e1e2e]">
+          {/* Misconception ID */}
+          <span className="text-xs text-[#585b70] font-semibold uppercase tracking-wider">Misconception</span>
+          <span className="px-2 py-0.5 rounded-full bg-[#f38ba8]/20 text-[#f38ba8] text-xs font-semibold border border-[#f38ba8]/40">
+            {misconception.id}
+          </span>
+          {/* Confidence */}
+          <span className="px-2 py-0.5 rounded-full bg-[#cba6f7]/20 text-[#cba6f7] text-xs border border-[#cba6f7]/40">
+            {Math.round(misconception.confidence * 100)}% conf
+          </span>
+          {/* Evidence line */}
+          <span className="px-2 py-0.5 rounded-full bg-[#89b4fa]/20 text-[#89b4fa] text-xs border border-[#89b4fa]/40">
+            line {misconception.evidence_line}
+          </span>
+          {/* Recurrence */}
+          <span className="ml-auto text-xs text-[#585b70]">Recurrence</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${
+            recurrenceCount >= 3
+              ? 'bg-[#f38ba8]/20 text-[#f38ba8] border-[#f38ba8]/40'
+              : recurrenceCount >= 1
+              ? 'bg-[#f9e2af]/20 text-[#f9e2af] border-[#f9e2af]/40'
+              : 'bg-[#a6e3a1]/20 text-[#a6e3a1] border-[#a6e3a1]/40'
+          }`}>
+            {recurrenceCount}×
+          </span>
+          {/* Streak warning */}
+          {sameStreak && (
+            <span className="px-2 py-0.5 rounded-full bg-[#f38ba8]/30 text-[#f38ba8] text-xs font-bold border border-[#f38ba8]/50 animate-pulse">
+              ⚠ streak
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Log output */}
       <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-xs text-[#a6e3a1] space-y-1 leading-5">
         {agentLogs.map((line, i) => (
@@ -312,6 +350,24 @@ function AgentTerminal({ agentLogs }) {
             {line}
           </div>
         ))}
+
+        {/* Misconception block — only when id is present */}
+        {misconception?.id && (
+          <div className="mt-2 rounded-lg border border-[#f38ba8]/40 bg-[#f38ba8]/10 px-3 py-2 space-y-0.5 font-sans">
+            <div className="text-[#585b70] text-xs font-semibold uppercase tracking-wider mb-1">Misconception detected</div>
+            <div className="text-[#f38ba8] text-xs font-semibold">
+              &ldquo;{misconception.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}&rdquo;
+            </div>
+            <div className="text-[#a6adc8] text-xs">Confidence: {Math.round(misconception.confidence * 100)}%</div>
+            <div className="text-[#a6adc8] text-xs">Line {misconception.evidence_line}</div>
+            {recurrenceCount > 1 && (
+              <div className="mt-1 inline-block px-2 py-0.5 rounded-full bg-[#f9e2af]/20 text-[#f9e2af] text-xs font-semibold border border-[#f9e2af]/40">
+                You've hit this misconception {recurrenceCount}x
+              </div>
+            )}
+          </div>
+        )}
+
         <div ref={endRef} />
       </div>
     </div>
@@ -336,6 +392,9 @@ function App() {
     '> System ready. Awaiting code submission…',
     '> _',
   ])
+  const [misconception, setMisconception] = useState(null)   // full object
+  const [recurrenceCount, setRecurrenceCount] = useState(0)
+  const [sameStreak, setSameStreak] = useState(false)
 
   const handleSendChat = async () => {
     const text = chatInput.trim()
@@ -348,7 +407,7 @@ function App() {
     setIsChatLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:8000/chat', {
+      const response = await axios.post(`${API_BASE}/chat`, {
         messages: updatedHistory.map((m) => ({
           role: m.role === 'bot' ? 'assistant' : m.role,
           content: m.content,
@@ -383,6 +442,9 @@ function App() {
       '> Awaiting code submission…',
       '> _',
     ])
+    setMisconception(null)
+    setRecurrenceCount(0)
+    setSameStreak(false)
   }
 
   const handleSubmitCode = async () => {
@@ -398,7 +460,7 @@ function App() {
     ])
 
     try {
-      const response = await axios.post('http://localhost:8000/submit', {
+      const response = await axios.post(`${API_BASE}/submit`, {
         language,
         code,
         user_id: 'user_42',
@@ -410,6 +472,11 @@ function App() {
           ...data.agent_logs,
           '> _',
         ])
+      }
+      if (data.misconception?.id) {
+        setMisconception(data.misconception)
+        setRecurrenceCount(data.trajectory?.recurrence_count ?? 0)
+        setSameStreak(data.trajectory?.same_misconception_streak ?? false)
       }
       if (data.tutor_response) {
         setChatHistory((prev) => [
@@ -461,7 +528,12 @@ function App() {
           onSendChat={handleSendChat}
           isChatLoading={isChatLoading}
         />
-        <AgentTerminal agentLogs={agentLogs} />
+        <AgentTerminal
+          agentLogs={agentLogs}
+          misconception={misconception}
+          recurrenceCount={recurrenceCount}
+          sameStreak={sameStreak}
+        />
       </div>
     </div>
   )
