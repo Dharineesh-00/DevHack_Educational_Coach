@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Code2, Brain, Terminal, Send, Loader2, Layers, ChevronRight } from 'lucide-react'
+import { Code2, Brain, Terminal, Send, Loader2, Layers, ChevronRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import MonacoEditor from '@monaco-editor/react'
 import axios from 'axios'
 
@@ -97,12 +97,38 @@ const DIFF_COLORS = {
 }
 
 // ─── Problem Sidebar ───────────────────────────────────────────────────────────
-function ProblemSidebar({ problems, selected, onSelect }) {
+function ProblemSidebar({ problems, selected, onSelect, isCollapsed, onToggle }) {
+  if (isCollapsed) {
+    return (
+      <div className="flex h-full w-12 shrink-0 flex-col items-center border-r border-[#313244] bg-[#181825]">
+        <button
+          onClick={onToggle}
+          className="mt-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#313244] bg-[#1e1e2e] text-[#cdd6f4] transition-colors hover:bg-[#232334]"
+          aria-label="Show problems panel"
+          title="Show problems panel"
+        >
+          <PanelLeftOpen size={14} />
+        </button>
+        <span className="mt-3 -rotate-90 whitespace-nowrap text-[10px] font-semibold uppercase tracking-widest text-[#585b70]">
+          Problems
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col w-56 shrink-0 h-full bg-[#181825] border-r border-[#313244]">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#313244]">
         <Layers size={15} className="text-[#89b4fa]" />
         <span className="text-xs font-semibold text-[#cdd6f4] tracking-widest uppercase">Problems</span>
+        <button
+          onClick={onToggle}
+          className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#313244] bg-[#1e1e2e] text-[#cdd6f4] transition-colors hover:bg-[#232334]"
+          aria-label="Hide problems panel"
+          title="Hide problems panel"
+        >
+          <PanelLeftClose size={13} />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {problems.map((p) => (
@@ -158,9 +184,9 @@ function ProblemPane({ problem }) {
 // ─── Left Panel — Code Editor ─────────────────────────────────────────────────
 function CodeEditorPanel({ problem, code, language, setCode, isLoading, onSubmit }) {
   return (
-    <div className="flex h-full w-[60%] border-r border-[#313244]">
+    <div className="flex h-full min-w-0 flex-1 border-r border-[#313244]">
       {/* Problem description — left strip */}
-      <div className="flex flex-col w-[45%] h-full border-r border-[#313244] bg-[#1e1e2e]">
+      <div className="flex flex-col w-[42%] min-w-[280px] h-full border-r border-[#313244] bg-[#1e1e2e]">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[#313244] bg-[#181825] shrink-0">
           <Code2 size={16} className="text-[#89b4fa]" />
           <span className="text-xs font-semibold text-[#cdd6f4] tracking-wide">Problem</span>
@@ -171,7 +197,7 @@ function CodeEditorPanel({ problem, code, language, setCode, isLoading, onSubmit
       </div>
 
       {/* Editor — right strip */}
-      <div className="flex flex-col flex-1 h-full bg-[#1e1e2e]">
+      <div className="flex min-w-0 flex-col flex-1 h-full bg-[#1e1e2e]">
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[#313244] bg-[#181825] shrink-0">
           <Code2 size={18} className="text-[#89b4fa]" />
@@ -184,7 +210,7 @@ function CodeEditorPanel({ problem, code, language, setCode, isLoading, onSubmit
         </div>
 
         {/* Monaco Editor */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <MonacoEditor
             height="100%"
             language={language}
@@ -230,11 +256,26 @@ function CodeEditorPanel({ problem, code, language, setCode, isLoading, onSubmit
 }
 
 // ─── Top-Right Panel — Socratic Tutor ────────────────────────────────────────
-function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLoading }) {
+function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLoading, isCollapsed, onToggle }) {
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory])
+
+  if (isCollapsed) {
+    return (
+      <div className="flex h-[70%] items-start justify-center border-b border-[#313244] bg-[#181825] py-3">
+        <button
+          onClick={onToggle}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#313244] bg-[#1e1e2e] text-[#cdd6f4] transition-colors hover:bg-[#232334]"
+          aria-label="Show tutor panel"
+          title="Show tutor panel"
+        >
+          <PanelRightOpen size={14} />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-[58%] border-b border-[#313244]">
@@ -248,6 +289,14 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
           <span className="w-2 h-2 rounded-full bg-[#a6e3a1] animate-pulse" />
           Active
         </span>
+        <button
+          onClick={onToggle}
+          className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#313244] bg-[#1e1e2e] text-[#cdd6f4] transition-colors hover:bg-[#232334]"
+          aria-label="Hide tutor panel"
+          title="Hide tutor panel"
+        >
+          <PanelRightClose size={13} />
+        </button>
       </div>
 
       {/* Scrollable messages */}
@@ -295,11 +344,26 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
 }
 
 // ─── Bottom-Right Panel — Agent Terminal ──────────────────────────────────────
-function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }) {
+function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak, isCollapsed, onToggle }) {
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [agentLogs, misconception])
+
+  if (isCollapsed) {
+    return (
+      <div className="flex h-[30%] items-start justify-center bg-[#11111b] py-3">
+        <button
+          onClick={onToggle}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#313244] bg-[#1e1e2e] text-[#a6e3a1] transition-colors hover:bg-[#232334]"
+          aria-label="Show terminal panel"
+          title="Show terminal panel"
+        >
+          <PanelRightOpen size={14} />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-[42%] bg-[#11111b]">
@@ -309,6 +373,14 @@ function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }
         <span className="text-xs font-semibold text-[#a6e3a1] tracking-widest uppercase">
           Agent Terminal
         </span>
+        <button
+          onClick={onToggle}
+          className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#313244] bg-[#181825] text-[#a6e3a1] transition-colors hover:bg-[#232334]"
+          aria-label="Hide terminal panel"
+          title="Hide terminal panel"
+        >
+          <PanelRightClose size={13} />
+        </button>
       </div>
 
       {/* Log output */}
@@ -347,6 +419,9 @@ function App() {
   const [code, setCode] = useState(PROBLEMS[0].starterCode)
   const [language] = useState('python')
   const [isLoading, setIsLoading] = useState(false)
+  const [isProblemsCollapsed, setIsProblemsCollapsed] = useState(false)
+  const [isTutorCollapsed, setIsTutorCollapsed] = useState(false)
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatHistory, setChatHistory] = useState([
     {
@@ -374,7 +449,7 @@ function App() {
     setChatInput('')
     setIsChatLoading(true)
 
-    try {
+        try {
       const response = await axios.post(`${API_BASE}/chat`, {
         messages: updatedHistory.map((m) => ({
           role: m.role === 'bot' ? 'assistant' : m.role,
@@ -499,6 +574,8 @@ function App() {
         problems={PROBLEMS}
         selected={selectedProblem}
         onSelect={handleSelectProblem}
+        isCollapsed={isProblemsCollapsed}
+        onToggle={() => setIsProblemsCollapsed((prev) => !prev)}
       />
 
       {/* Left — Problem description + Code Editor */}
@@ -512,19 +589,23 @@ function App() {
       />
 
       {/* Right — Tutor + Terminal */}
-      <div className="flex flex-col w-[40%] h-full">
+      <div className="flex min-w-[280px] w-[32%] max-w-[44rem] flex-col h-full">
         <TutorPanel
           chatHistory={chatHistory}
           chatInput={chatInput}
           setChatInput={setChatInput}
           onSendChat={handleSendChat}
           isChatLoading={isChatLoading}
+          isCollapsed={isTutorCollapsed}
+          onToggle={() => setIsTutorCollapsed((prev) => !prev)}
         />
         <AgentTerminal
           agentLogs={agentLogs}
           misconception={misconception}
           recurrenceCount={recurrenceCount}
           sameStreak={sameStreak}
+          isCollapsed={isTerminalCollapsed}
+          onToggle={() => setIsTerminalCollapsed((prev) => !prev)}
         />
       </div>
     </div>
