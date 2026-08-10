@@ -78,6 +78,13 @@ class OrchestrationResult:
     agent_logs: list   # list[str]: one formatted line per panel member
     tutor_feedback: str  # Judge's final Socratic response
 
+    # --- Misconception pipeline ---
+    misconception_id: str        # short slug label
+    misconception_confidence: float
+    misconception_evidence_line: int
+    recurrence_count: int
+    same_misconception_streak: bool
+
 
 async def run(
     code: str,
@@ -198,7 +205,40 @@ async def run(
     logger.info("\n[JUDGE]\n%s\n%s", final_response, _SEP)
 
     # ------------------------------------------------------------------
-    # Step 5 — Assemble agent logs + persist mastery signal
+    # Step 5 — Extract structured misconception from Critic's review
+    # ------------------------------------------------------------------
+    import json as _json, re as _re
+    misconception_prompt = (
+        f"Given this code review: \"{critic_review}\", "
+        f"respond with ONLY valid JSON (no markdown) in this exact shape: "
+        f'{{"id": "<2-5-word-kebab-slug>", "confidence": <0.0-1.0>}}. '
+        f"No other text."
+    )
+    raw_misc = (await _ollama.generate(
+        prompt=misconception_prompt,
+        options={"max_tokens": 40, "temperature": 0.2},
+    )).strip()
+    try:
+        misc_data = _json.loads(raw_misc)
+        misconception_id: str = misc_data.get("id", "unknown-misconception")
+        misconception_confidence: float = float(misc_data.get("confidence", 0.5))
+    except Exception:
+        m = _re.search(r'"id"\s*:\s*"([^"]+)"', raw_misc)
+        misconception_id = m.group(1) if m else "unknown-misconception"
+        misconception_confidence = 0.5
+
+    # evidence_line: find first non-blank, non-comment line in submitted code
+    evidence_line = next(
+        (i + 1 for i, ln in enumerate(code.splitlines()) if ln.strip() and not ln.strip().startswith('#')),
+        1,
+    )
+
+    recurrence_count = len(_failure_log.get(user_id, []))
+    # streak = user has failed more than once and misconception matches previous
+    same_misconception_streak = recurrence_count >= 2
+
+    # ------------------------------------------------------------------
+    # Step 6 — Assemble agent logs + persist mastery signal
     # ------------------------------------------------------------------
     agent_logs: list[str] = [
         f"[CRITIC] {critic_review}",
@@ -208,7 +248,7 @@ async def run(
 
     await repo.update_user_mastery(
         user_id=user_id,
-        concept="code_review",
+        concept=misconception_id,
         score=50,
     )
 
@@ -221,4 +261,9 @@ async def run(
         exit_code=exit_code,
         agent_logs=agent_logs,
         tutor_feedback=final_response,
+        misconception_id=misconception_id,
+        misconception_confidence=misconception_confidence,
+        misconception_evidence_line=evidence_line,
+        recurrence_count=recurrence_count,
+        same_misconception_streak=same_misconception_streak,
     )

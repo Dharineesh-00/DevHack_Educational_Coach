@@ -23,8 +23,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # OpenRouter settings
 # ---------------------------------------------------------------------------
+import os
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_API_KEY  = "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"
+OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "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")
 PRIMARY_MODEL       = "anthropic/claude-3-haiku"
 
 # Free-tier fallback models tried in order when the primary fails.

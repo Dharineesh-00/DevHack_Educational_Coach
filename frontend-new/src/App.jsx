@@ -3,10 +3,13 @@ import { Code2, Brain, Terminal, Send, Loader2, Layers, ChevronRight } from 'luc
 import MonacoEditor from '@monaco-editor/react'
 import axios from 'axios'
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
 // ─── Stack Problems Data ───────────────────────────────────────────────────────
 const PROBLEMS = [
   {
     id: 1,
+    slug: 'valid-parentheses',
     title: 'Valid Parentheses',
     difficulty: 'Easy',
     description:
@@ -23,6 +26,7 @@ const PROBLEMS = [
   },
   {
     id: 2,
+    slug: 'min-stack',
     title: 'Min Stack',
     difficulty: 'Medium',
     description:
@@ -52,6 +56,7 @@ const PROBLEMS = [
   },
   {
     id: 3,
+    slug: 'daily-temperatures',
     title: 'Daily Temperatures',
     difficulty: 'Medium',
     description:
@@ -68,6 +73,7 @@ const PROBLEMS = [
   },
   {
     id: 4,
+    slug: 'evaluate-rpn',
     title: 'Evaluate Reverse Polish Notation',
     difficulty: 'Medium',
     description:
@@ -231,7 +237,7 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
   }, [chatHistory])
 
   return (
-    <div className="flex flex-col h-[70%] border-b border-[#313244]">
+    <div className="flex flex-col h-[58%] border-b border-[#313244]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#313244] bg-[#181825]">
         <Brain size={18} className="text-[#cba6f7]" />
@@ -289,14 +295,14 @@ function TutorPanel({ chatHistory, chatInput, setChatInput, onSendChat, isChatLo
 }
 
 // ─── Bottom-Right Panel — Agent Terminal ──────────────────────────────────────
-function AgentTerminal({ agentLogs }) {
+function AgentTerminal({ agentLogs, misconception, recurrenceCount, sameStreak }) {
   const endRef = useRef(null)
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [agentLogs])
+  }, [agentLogs, misconception])
 
   return (
-    <div className="flex flex-col h-[30%] bg-[#11111b]">
+    <div className="flex flex-col h-[42%] bg-[#11111b]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-[#313244] bg-[#181825]">
         <Terminal size={16} className="text-[#a6e3a1]" />
@@ -314,6 +320,23 @@ function AgentTerminal({ agentLogs }) {
         ))}
         <div ref={endRef} />
       </div>
+
+      {/* Misconception block — pinned, only when id is present */}
+      {misconception?.id && (
+        <div className="shrink-0 mx-4 mb-2 rounded-lg border border-[#f38ba8]/40 bg-[#f38ba8]/10 px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-[#585b70] text-xs font-semibold uppercase tracking-wider">Misconception</span>
+          <span className="text-[#f38ba8] text-xs font-semibold">
+            &ldquo;{misconception.id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}&rdquo;
+          </span>
+          <span className="text-[#a6adc8] text-xs">{Math.round(misconception.confidence * 100)}% conf</span>
+          <span className="text-[#a6adc8] text-xs">line {misconception.evidence_line}</span>
+          {recurrenceCount > 1 && (
+            <span className="px-2 py-0.5 rounded-full bg-[#f9e2af]/20 text-[#f9e2af] text-xs font-semibold border border-[#f9e2af]/40">
+              {recurrenceCount}x recurrence
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -336,6 +359,10 @@ function App() {
     '> System ready. Awaiting code submission…',
     '> _',
   ])
+  const [misconception, setMisconception] = useState(null)   // full object
+  const [recurrenceCount, setRecurrenceCount] = useState(0)
+  const [sameStreak, setSameStreak] = useState(false)
+  const miscHistory = useRef([])  // frontend-side recurrence tracker
 
   const handleSendChat = async () => {
     const text = chatInput.trim()
@@ -348,7 +375,7 @@ function App() {
     setIsChatLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:8000/chat', {
+      const response = await axios.post(`${API_BASE}/chat`, {
         messages: updatedHistory.map((m) => ({
           role: m.role === 'bot' ? 'assistant' : m.role,
           content: m.content,
@@ -383,6 +410,10 @@ function App() {
       '> Awaiting code submission…',
       '> _',
     ])
+    setMisconception(null)
+    setRecurrenceCount(0)
+    setSameStreak(false)
+    miscHistory.current = []
   }
 
   const handleSubmitCode = async () => {
@@ -398,25 +429,53 @@ function App() {
     ])
 
     try {
-      const response = await axios.post('http://localhost:8000/submit', {
-        language,
+      const response = await axios.post(`${API_BASE}/submit`, {
+        user_id: 'test-user-1',
+        problem_id: selectedProblem.slug,
         code,
-        user_id: 'user_42',
       })
       const data = response.data
-      if (Array.isArray(data.agent_logs) && data.agent_logs.length > 0) {
+
+      // Build agent log lines from contract fields: critic, defender, judge
+      const logs = []
+      if (data.critic)   logs.push(`[CRITIC] ${data.critic}`)
+      if (data.defender) logs.push(`[DEFENDER] ${data.defender}`)
+      if (data.judge)    logs.push(`[JUDGE] ${data.judge}`)
+      // Fallback: legacy agent_logs array if backend still returns old shape
+      const agentLines = logs.length > 0 ? logs : (() => {
+        const lines = Array.isArray(data.agent_logs) ? [...data.agent_logs] : []
+        // Replace hardcoded Judge placeholder with actual tutor_response
+        const judgeIdx = lines.reduce((last, l, i) => l.startsWith('[JUDGE]') ? i : last, -1)
+        if (judgeIdx !== -1 && data.tutor_response)
+          lines[judgeIdx] = `[JUDGE] ${data.tutor_response}`
+        return lines
+      })()
+
+      if (agentLines.length > 0) {
         setAgentLogs((prev) => [
           ...prev.filter((l) => !l.endsWith('_')),
-          ...data.agent_logs,
+          ...agentLines,
           '> _',
         ])
       }
-      if (data.tutor_response) {
+      // Judge hint — contract: data.judge, legacy fallback: data.tutor_response
+      const hint = data.judge ?? data.tutor_response
+      if (hint) {
         setChatHistory((prev) => [
           ...prev,
-          { role: 'bot', content: data.tutor_response },
+          { role: 'bot', content: hint },
         ])
       }
+      // Misconception — always set after submission; use fallback if id missing
+      const mid = data.misconception?.id || 'unclassified-misconception'
+      const conf = typeof data.misconception?.confidence === 'number' ? data.misconception.confidence : 0.5
+      const evLine = data.misconception?.evidence_line ?? 1
+      setMisconception({ id: mid, confidence: conf, evidence_line: evLine })
+      miscHistory.current.push(mid)
+      const count = miscHistory.current.filter(x => x === mid).length
+      const streak = count >= 2 && miscHistory.current.slice(-2).every(x => x === mid)
+      setRecurrenceCount(count)
+      setSameStreak(streak)
     } catch (err) {
       const msg = err.response?.data?.detail ?? err.message ?? 'Unknown error.'
       setChatHistory((prev) => [
@@ -461,7 +520,12 @@ function App() {
           onSendChat={handleSendChat}
           isChatLoading={isChatLoading}
         />
-        <AgentTerminal agentLogs={agentLogs} />
+        <AgentTerminal
+          agentLogs={agentLogs}
+          misconception={misconception}
+          recurrenceCount={recurrenceCount}
+          sameStreak={sameStreak}
+        />
       </div>
     </div>
   )

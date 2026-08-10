@@ -74,6 +74,17 @@ class CodeRequest(BaseModel):
     )
 
 
+class MisconceptionDetail(BaseModel):
+    id: str
+    confidence: float
+    evidence_line: int
+
+
+class TrajectoryDetail(BaseModel):
+    recurrence_count: int
+    same_misconception_streak: bool
+
+
 class SubmitResponse(BaseModel):
     # Execution details
     language: str
@@ -86,6 +97,10 @@ class SubmitResponse(BaseModel):
     # Agent debate — rendered in the React agent terminal
     agent_logs: list[str]
     tutor_response: str
+
+    # Misconception pipeline (contract-aligned nested objects)
+    misconception: MisconceptionDetail
+    trajectory: TrajectoryDetail
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +156,15 @@ async def submit_code(payload: CodeRequest) -> SubmitResponse:
         exit_code=result.exit_code,
         agent_logs=result.agent_logs,
         tutor_response=result.tutor_feedback,
+        misconception=MisconceptionDetail(
+            id=result.misconception_id,
+            confidence=result.misconception_confidence,
+            evidence_line=result.misconception_evidence_line,
+        ),
+        trajectory=TrajectoryDetail(
+            recurrence_count=result.recurrence_count,
+            same_misconception_streak=result.same_misconception_streak,
+        ),
     )
 
 
